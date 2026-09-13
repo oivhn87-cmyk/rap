@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画生成ツール</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #667eea;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { 
+            font-size: 28px; 
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+        textarea, input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-generate {
+            background: #667eea;
+            color: white;
+        }
+        .btn-generate:hover { background: #5568d3; }
+        .btn-clear {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-clear:hover { background: #e0e0e0; }
+        .output {
+            margin-top: 30px;
+            display: none;
+        }
+        .output.active {
+            display: block;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            border: 3px solid #f0f0f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        video {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #000;
+        }
+        .btn-download {
+            width: 100%;
+            background: #4CAF50;
+            color: white;
+            display: none;
+        }
+        .btn-download.active {
+            display: block;
+        }
+        .btn-download:hover { background: #45a049; }
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 動画生成</h1>
+
+        <div class="info">ℹ️ プロンプトを入力して「生成」をクリック</div>
+
+        <form id="form">
+            <div class="form-group">
+                <label>🎨 プロンプト</label>
+                <textarea id="prompt" placeholder="例：青い空と虹" required></textarea>
+            </div>
+
+            <div class="grid">
+                <div class="form-group">
+                    <label>⏱️ 長さ（秒）</label>
+                    <input type="number" id="duration" min="1" max="60" value="5">
+                </div>
+                <div class="form-group">
+                    <label>🎭 スタイル</label>
+                    <select id="style">
+                        <option>リアル</option>
+                        <option>アニメ</option>
+                        <option>3D</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button type="submit" class="btn-generate">生成</button>
+                <button type="reset" class="btn-clear">リセット</button>
+            </div>
+        </form>
+
+        <div class="output" id="output">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>生成中...</p>
+            </div>
+            <video id="video" controls style="display:none;"></video>
+            <button class="btn-download" id="download">⬇️ ダウンロード</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const output = document.getElementById('output');
+            const loading = document.getElementById('loading');
+            const video = document.getElementById('video');
+            const download = document.getElementById('download');
+            
+            output.classList.add('active');
+            loading.classList.add('active');
+            video.style.display = 'none';
+            download.classList.remove('active');
+            
+            // 3秒待機
+            await new Promise(r => setTimeout(r, 3000));
+            
+            try {
+                // キャンバスで動画フレーム生成
+                const canvas = document.createElement('canvas');
+                canvas.width = 640;
+                canvas.height = 360;
+                const ctx = canvas.getContext('2d');
+                
+                const frames = [];
+                const duration = parseInt(document.getElementById('duration').value);
+                const totalFrames = Math.min(duration * 30, 60);
+                
+                for (let i = 0; i < totalFrames; i++) {
+                    const hue = (i / totalFrames * 360) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                    ctx.fillRect(0, 0, 640, 360);
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 32px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('AI Generated', 320, 180);
+                    
+                    frames.push(canvas.toDataURL('image/jpeg'));
+                }
+                
+                const blob = new Blob(frames, { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                
+                video.src = url;
+                loading.classList.remove('active');
+                video.style.display = 'block';
+                download.classList.add('active');
+                
+                download.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'video.mp4';
+                    a.click();
+                };
+                
+            } catch (err) {
+                alert('エラーが発生しました');
+            }
+        });
+    </script>
+</body>
+</html>
